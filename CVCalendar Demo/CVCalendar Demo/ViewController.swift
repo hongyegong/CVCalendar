@@ -8,8 +8,7 @@
 
 import UIKit
 
-class ViewController: UIViewController {
-    // MARK: - Properties
+class ViewController: UIViewController, CVCalendarViewDelegate {
     @IBOutlet weak var calendarView: CVCalendarView!
     @IBOutlet weak var menuView: CVCalendarMenuView!
     @IBOutlet weak var monthLabel: UILabel!
@@ -18,49 +17,81 @@ class ViewController: UIViewController {
     var shouldShowDaysOut = true
     var animationFinished = true
     
-    // MARK: - Life cycle
-    
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        monthLabel.text = CVDate(date: NSDate()).globalDescription
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
         
-        calendarView.commitCalendarViewUpdate()
-        menuView.commitMenuViewUpdate()
-    }
-}
-
-// MARK: - CVCalendarViewDelegate
-
-extension ViewController: CVCalendarViewDelegate {
-    func presentationMode() -> CalendarMode {
-        return .MonthView
+        self.monthLabel.text = CVDate(date: NSDate()).description()
     }
     
-    func firstWeekday() -> Weekday {
-        return .Sunday
+    override func viewDidAppear(animated: Bool) {
+        super.viewDidAppear(animated)
+        
+        self.calendarView.commitCalendarViewUpdate()
+        self.menuView.commitMenuViewUpdate()
     }
+    
+    // MARK: - IB Actions
+    
+    @IBAction func switchChanged(sender: UISwitch) {
+        if sender.on {
+            self.calendarView!.changeDaysOutShowingState(false)
+            self.shouldShowDaysOut = true
+        } else {
+            self.calendarView!.changeDaysOutShowingState(true)
+            self.shouldShowDaysOut = false
+        }
+    }
+    
+    @IBAction func todayMonthView() {
+        self.calendarView.toggleTodayMonthView()
+    }
+    
+    // MARK: Calendar View Delegate
     
     func shouldShowWeekdaysOut() -> Bool {
-        return shouldShowDaysOut
+        return self.shouldShowDaysOut
     }
     
     func didSelectDayView(dayView: CVCalendarDayView) {
-        let date = dayView.date
-        println("\(calendarView.presentedDate.commonDescription) is selected!")
+        // TODO:
     }
     
+    func dotMarker(colorOnDayView dayView: CVCalendarDayView) -> UIColor {
+        if dayView.date?.day == 3 {
+            return .redColor()
+        } else if dayView.date?.day == 5 {
+            return .blackColor()
+        } else if dayView.date?.day == 2 {
+            return .blueColor()
+        }
+        
+        return .greenColor()
+    }
+    
+    func dotMarker(shouldShowOnDayView dayView: CVCalendarDayView) -> Bool {
+        if dayView.date?.day == 3 || dayView.date?.day == 5 || dayView.date?.day == 2 {
+            return true
+        } else {
+            return false
+        }
+    }
+    
+    func dotMarker(shouldMoveOnHighlightingOnDayView dayView: CVCalendarDayView) -> Bool {
+        return false
+    }
+    
+    func topMarker(shouldDisplayOnDayView dayView: CVCalendarDayView) -> Bool {
+        return true
+    }
+    
+    
     func presentedDateUpdated(date: CVDate) {
-        if monthLabel.text != date.globalDescription && self.animationFinished {
+        if self.monthLabel.text != date.description() && self.animationFinished {
             let updatedMonthLabel = UILabel()
             updatedMonthLabel.textColor = monthLabel.textColor
             updatedMonthLabel.font = monthLabel.font
             updatedMonthLabel.textAlignment = .Center
-            updatedMonthLabel.text = date.globalDescription
+            updatedMonthLabel.text = date.description
             updatedMonthLabel.sizeToFit()
             updatedMonthLabel.alpha = 0
             updatedMonthLabel.center = self.monthLabel.center
@@ -69,7 +100,7 @@ extension ViewController: CVCalendarViewDelegate {
             updatedMonthLabel.transform = CGAffineTransformMakeTranslation(0, offset)
             updatedMonthLabel.transform = CGAffineTransformMakeScale(1, 0.1)
             
-            UIView.animateWithDuration(0.35, delay: 0, options: UIViewAnimationOptions.CurveEaseIn, animations: {
+            UIView.animateWithDuration(0.35, delay: 0, options: UIViewAnimationOptions.CurveEaseIn, animations: { () -> Void in
                 self.animationFinished = false
                 self.monthLabel.transform = CGAffineTransformMakeTranslation(0, -offset)
                 self.monthLabel.transform = CGAffineTransformMakeScale(1, 0.1)
@@ -78,8 +109,7 @@ extension ViewController: CVCalendarViewDelegate {
                 updatedMonthLabel.alpha = 1
                 updatedMonthLabel.transform = CGAffineTransformIdentity
                 
-                }) { _ in
-                    
+                }) { (finished) -> Void in
                     self.animationFinished = true
                     self.monthLabel.frame = updatedMonthLabel.frame
                     self.monthLabel.text = updatedMonthLabel.text
@@ -92,104 +122,15 @@ extension ViewController: CVCalendarViewDelegate {
         }
     }
     
-    func topMarker(shouldDisplayOnDayView dayView: CVCalendarDayView) -> Bool {
-        return true
-    }
-    
-    func dotMarker(shouldShowOnDayView dayView: CVCalendarDayView) -> Bool {
-        let day = dayView.date.day
-        let randomDay = Int(arc4random_uniform(31))
-        if day == randomDay {
-            return true
-        }
-        
-        return false
-    }
-    
-    func dotMarker(colorOnDayView dayView: CVCalendarDayView) -> UIColor {
-        let day = dayView.date.day
-        
-        let red = CGFloat(arc4random_uniform(600) / 255)
-        let green = CGFloat(arc4random_uniform(600) / 255)
-        let blue = CGFloat(arc4random_uniform(600) / 255)
-        
-        let color = UIColor(red: red, green: green, blue: blue, alpha: 1)
-
-        return color
-    }
-    
-    func dotMarker(shouldMoveOnHighlightingOnDayView dayView: CVCalendarDayView) -> Bool {
-        return true
-    }
-}
-
-// MARK: - CVCalendarViewAppearanceDelegate
-
-extension ViewController: CVCalendarViewAppearanceDelegate {
-    func dayLabelPresentWeekdayInitallyBold() -> Bool {
-        return false
-    }
-    
-    func spaceBetweenDayViews() -> CGFloat {
-        return 2
-    }
-}
-
-// MARK: - CVCalendarMenuViewDelegate
-
-extension ViewController: CVCalendarMenuViewDelegate {
-    // firstWeekday() has been already implemented.
-}
-
-// MARK: - IB Actions
-
-extension ViewController {
-    @IBAction func switchChanged(sender: UISwitch) {
-        if sender.on {
-            calendarView.changeDaysOutShowingState(false)
-            shouldShowDaysOut = true
-        } else {
-            calendarView.changeDaysOutShowingState(true)
-            shouldShowDaysOut = false
-        }
-    }
-    
-    @IBAction func todayMonthView() {
-        calendarView.toggleCurrentDayView()
-    }
-    
-    /// Switch to WeekView mode.
-    @IBAction func toWeekView(sender: AnyObject) {
-        calendarView.changeMode(.WeekView)
-    }
-    
-    /// Switch to MonthView mode.
-    @IBAction func toMonthView(sender: AnyObject) {
-        calendarView.changeMode(.MonthView)
-    }
-    
-    @IBAction func loadPrevious(sender: AnyObject) {
-        calendarView.loadPreviousView()
-    }
-    
-    
-    @IBAction func loadNext(sender: AnyObject) {
-        calendarView.loadNextView()
-    }
-}
-
-// MARK: - Convenience API Demo
-
-extension ViewController {
     func toggleMonthViewWithMonthOffset(offset: Int) {
         let calendar = NSCalendar.currentCalendar()
-        let calendarManager = calendarView.manager
-        let components = Manager.componentsForDate(NSDate()) // from today
+        let calendarManager = CVCalendarManager.sharedManager
+        let components = calendarManager.componentsForDate(NSDate()) // from today
         
         components.month += offset
         
         let resultDate = calendar.dateFromComponents(components)!
         
-        self.calendarView.toggleViewWithDate(resultDate)
+        self.calendarView.toggleMonthViewWithDate(resultDate)
     }
 }

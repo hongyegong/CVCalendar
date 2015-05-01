@@ -9,12 +9,11 @@
 import UIKit
 
 class CVCalendarDayView: UIView {
-    
     // MARK: - Public properties
-
-    var weekView: CVCalendarWeekView?
     let weekdayIndex: Int?
     let date: CVDate?
+    
+    weak var weekView: CVCalendarWeekView?
     
     var dayLabel: UILabel?
     var circleView: CVCircleView?
@@ -24,20 +23,47 @@ class CVCalendarDayView: UIView {
     var isOut = false
     var isCurrentDay = false
     
+    weak var monthView: CVCalendarMonthView! {
+        get {
+            var monthView: CVCalendarMonthView!
+            safeExecuteBlock({
+                monthView = self.weekView!.monthView!
+            }, collapsingOnNil: false, withObjects: weekView, weekView?.monthView)
+            
+            return monthView
+        }
+    }
+    
+    weak var calendarView: CVCalendarView! {
+        get {
+            var calendarView: CVCalendarView!
+            safeExecuteBlock({
+                calendarView = self.weekView!.monthView!.calendarView!
+            }, collapsingOnNil: false, withObjects: weekView, weekView?.monthView, weekView?.monthView?.calendarView)
+            
+            return calendarView
+        }
+    }
+    
+    override var frame: CGRect {
+        didSet {
+            if oldValue != frame {
+                topMarkerSetup()
+            }
+        }
+    }
+    
     // MARK: - Initialization
     
     init(weekView: CVCalendarWeekView, frame: CGRect, weekdayIndex: Int) {
         super.init()
         
-        self.weekView = weekView
         self.frame = frame
+        self.weekView = weekView
         self.weekdayIndex = weekdayIndex
         
         func hasDayAtWeekdayIndex(weekdayIndex: Int, weekdaysDictionary: [Int : [Int]]) -> Bool {
-            let keys = weekdaysDictionary.keys
-            
-            for key in keys.array {
-                //println("Key: \(key), weekday index:\(weekdayIndex)")
+            for key in weekdaysDictionary.keys {
                 if key == weekdayIndex {
                     return true
                 }
@@ -48,38 +74,37 @@ class CVCalendarDayView: UIView {
         
         
         var day: Int?
+        let weekdaysIn = weekView.weekdaysIn!
         
-        let weekdaysIn = self.weekView!.weekdaysIn!
-        if let weekdaysOut = self.weekView?.weekdaysOut {
-            if hasDayAtWeekdayIndex(self.weekdayIndex!, weekdaysOut) {
-                self.isOut = true
-                day = weekdaysOut[self.weekdayIndex!]![0]
-            } else if hasDayAtWeekdayIndex(self.weekdayIndex!, weekdaysIn) {
-                day = weekdaysIn[self.weekdayIndex!]![0]
+        if let weekdaysOut = weekView.weekdaysOut {
+            if hasDayAtWeekdayIndex(weekdayIndex, weekdaysOut) {
+                isOut = true
+                day = weekdaysOut[weekdayIndex]![0]
+            } else if hasDayAtWeekdayIndex(weekdayIndex, weekdaysIn) {
+                day = weekdaysIn[weekdayIndex]![0]
             }
         } else {
-            day = weekdaysIn[self.weekdayIndex!]![0]
+            day = weekdaysIn[weekdayIndex]![0]
         }
         
-        if day == self.weekView!.monthView!.currentDay && !self.isOut {
+        if day == monthView.currentDay && !isOut {
             let manager = CVCalendarManager.sharedManager
-            let dateRange = manager.dateRange(self.weekView!.monthView!.date!)
+            let dateRange = manager.dateRange(monthView.date!)
             let currentDateRange = manager.dateRange(NSDate())
             
             if dateRange.month == currentDateRange.month && dateRange.year == currentDateRange.year {
-                self.isCurrentDay = true
+                isCurrentDay = true
             }
             
         }
-        
 
-        
-        var shouldShowDaysOut = self.weekView!.monthView!.calendarView!.shouldShowWeekdaysOut!
-        
+        var shouldShowDaysOut = calendarView.shouldShowWeekdaysOut!
         let calendarManager = CVCalendarManager.sharedManager
-        let year = calendarManager.dateRange(self.weekView!.monthView!.date!).year
-        var month: Int? = calendarManager.dateRange(self.weekView!.monthView!.date!).month
-        if self.isOut {
+        let year = calendarManager.dateRange(monthView.date!).year
+        var month: Int? = calendarManager.dateRange(monthView.date!).month
+        
+        // TODO: Fix math part
+        if isOut {
             if day > 20 {
                 month! -= 1
             } else {
@@ -87,16 +112,15 @@ class CVCalendarDayView: UIView {
             }
             
             if !shouldShowDaysOut {
-                self.hidden = true
+                hidden = true
             }
         }
         
-        self.date = CVDate(day: day!, month: month!, week: self.weekView!.index!, year: year)
+        date = CVDate(day: day!, month: month!, week: weekView.index!, year: year)
         
-        self.labelSetup()
-        self.topMarkerSetup()
-        self.setupGestures()
-        self.setupDotMarker()
+        labelSetup()
+        setupDotMarker()
+        topMarkerSetup()
     }
     
     override init(frame: CGRect) {
@@ -106,210 +130,217 @@ class CVCalendarDayView: UIView {
     required init(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
-    // MARK: - Properties setup
-    
+}
+
+// MARK: - Subviews setup
+
+extension CVCalendarDayView {
     func labelSetup() {
         let appearance = CVCalendarViewAppearance.sharedCalendarViewAppearance
         
-        self.dayLabel = UILabel()
-        self.dayLabel!.text = String(self.date!.day!)
-        self.dayLabel!.textAlignment = NSTextAlignment.Center
-        self.dayLabel!.frame = CGRectMake(0, 0, self.frame.width, self.frame.height)
+        dayLabel = UILabel()
+        dayLabel!.text = String(self.date!.day!)
+        dayLabel!.textAlignment = NSTextAlignment.Center
+        dayLabel!.frame = bounds
         
-        var font: UIFont? = UIFont.systemFontOfSize(appearance.dayLabelWeekdayTextSize!)
+        var font = appearance.dayLabelWeekdayFont
         var color: UIColor?
-        if self.isOut {
+        
+        if isOut {
             color = appearance.dayLabelWeekdayOutTextColor
-        } else if self.isCurrentDay {
+        } else if isCurrentDay {
             let coordinator = CVCalendarDayViewControlCoordinator.sharedControlCoordinator
             if coordinator.selectedDayView == nil {
-                self.weekView!.monthView!.receiveDayViewTouch(self)
+                let touchController = CVCalendarTouchController.sharedTouchController
+                touchController.receiveTouchOnDayView(self)
             } else {
                 color = appearance.dayLabelPresentWeekdayTextColor
-                font = UIFont.boldSystemFontOfSize(appearance.dayLabelPresentWeekdayTextSize!)
+                if appearance.dayLabelPresentWeekdayInitallyBold! {
+                    font = appearance.dayLabelPresentWeekdayBoldFont
+                } else {
+                    font = appearance.dayLabelPresentWeekdayFont
+                }
             }
             
         } else {
             color = appearance.dayLabelWeekdayInTextColor
         }
         
-        
         if color != nil && font != nil {
-            self.dayLabel!.textColor = color!
-            self.dayLabel!.font = font
+            dayLabel!.textColor = color!
+            dayLabel!.font = font
         }
         
-        self.addSubview(self.dayLabel!)
+        addSubview(dayLabel!)
     }
     
-    
     func topMarkerSetup() {
-        func createMarker() {
-            let height = CGFloat(0.5)
-            let layer = CALayer()
-            layer.borderColor = UIColor.grayColor().CGColor
-            layer.borderWidth = height
-            layer.frame = CGRectMake(0, 0, CGRectGetWidth(self.frame), height)
+        safeExecuteBlock({
+            func createMarker() {
+                let height = CGFloat(0.5)
+                let layer = CALayer()
+                layer.borderColor = UIColor.grayColor().CGColor
+                layer.borderWidth = height
+                layer.frame = CGRectMake(0, 0, CGRectGetWidth(frame), height)
+                
+                self.topMarker = layer
+                self.layer.addSublayer(self.topMarker!)
+            }
             
-            self.topMarker = layer
-            
-            self.layer.addSublayer(self.topMarker!)
-        }
-        
-        if let delegate = self.weekView!.monthView!.calendarView!.delegate {
-            if delegate.topMarker(shouldDisplayOnDayView: self) {
+            if let delegate = self.calendarView.delegate {
                 if self.topMarker != nil {
                     self.topMarker?.removeFromSuperlayer()
                     self.topMarker = nil
                 }
                 
-                createMarker()
+                if delegate.topMarker(shouldDisplayOnDayView: self) {
+                    createMarker()
+                }
             } else {
-                if self.topMarker != nil {
+                if self.topMarker == nil {
+                    createMarker()
+                } else {
                     self.topMarker?.removeFromSuperlayer()
                     self.topMarker = nil
+                    createMarker()
                 }
             }
-        } else {
-            if self.topMarker == nil {
-                createMarker()
-            } else {
-                self.topMarker?.removeFromSuperlayer()
-                self.topMarker = nil
-                createMarker()
-            }
-        }
+        }, collapsingOnNil: false, withObjects: weekView, weekView?.monthView, weekView?.monthView)
     }
     
     func setupDotMarker() {
-        if let delegate = self.weekView!.monthView!.calendarView!.delegate {
+        if let dotMarker = dotMarker {
+            self.dotMarker!.removeFromSuperview()
+            self.dotMarker = nil
+        }
+        
+        if let delegate = calendarView.delegate {
             if delegate.dotMarker(shouldShowOnDayView: self) {
-                var color = delegate.dotMarker(colorOnDayView: self)
-                let width: CGFloat = 13
-                let height = width
+                let color = isOut ? .grayColor() : delegate.dotMarker(colorOnDayView: self)
+                let (width: CGFloat, height: CGFloat) = (13, 13)
                 
-                let x = self.frame.width / 2
-                var yOffset: CGFloat? = 5
-                if let appearance = self.weekView!.monthView!.calendarView!.appearanceDelegate {
-                    yOffset = appearance.dotMarkerOffset
-                }
-                let y = CGRectGetMaxY(self.frame) - self.frame.height / yOffset!
-                
-                let frame = CGRectMake(0, 0, width, height)
-                
-                if self.isOut {
-                    color = UIColor.grayColor()
+                var yOffset: CGFloat = 5
+                if let y = delegate.dotMarker?(moveOffsetOnDayView: self) {
+                    yOffset = y
                 }
                 
-                self.dotMarker = CVCircleView(frame: frame, color: color, _alpha: 1)
-                self.dotMarker?.center = CGPointMake(x, y)
+                let x = frame.width / 2
+                let y = CGRectGetMidY(frame) + yOffset
+                let markerFrame = CGRectMake(0, 0, width, height)
                 
-                self.insertSubview(self.dotMarker!, atIndex: 0)
+                dotMarker = CVCircleView(frame: markerFrame, color: color, _alpha: 1)
+                dotMarker!.center = CGPointMake(x, y)
+                insertSubview(dotMarker!, atIndex: 0)
                 
                 let coordinator = CVCalendarDayViewControlCoordinator.sharedControlCoordinator
                 if self == coordinator.selectedDayView {
-                    self.moveDotMarker(false)
+                    moveDotMarkerBack(false)
                 }
             }
         }
     }
-    
-    // MARK: - Events handling
-    
-    func setupGestures() {
-        let tapRecognizer = UITapGestureRecognizer(target: self, action: "dayViewTapped")
-        self.addGestureRecognizer(tapRecognizer)
-    }
-    
-    func dayViewTapped() {
-        let monthView = self.weekView!.monthView!
-        monthView.receiveDayViewTouch(self)
-    }
-    
-    // MARK: - Label states management
-    
-    func moveDotMarker(unwinded: Bool) {
-        if self.dotMarker != nil {
-            var shouldMove = true
-            if let delegate = self.weekView!.monthView!.calendarView!.delegate {
-                shouldMove = delegate.dotMarker(shouldMoveOnHighlightingOnDayView: self)
-            }
-            if !unwinded && shouldMove {
-                let radius = (self.circleView!.frame.size.width - 10)/2
-                let center = CGPointMake((self.circleView!.frame.size.width)/2, self.circleView!.frame.size.height/2)
-                let maxArcPointY = center.y + radius
-                self.diff = maxArcPointY - self.dotMarker!.frame.origin.y/0.95
+}
+
+// MARK: - Dot marker movement
+
+extension CVCalendarDayView {
+    func moveDotMarkerBack(unwinded: Bool) {
+        if let calendarView = calendarView {
+            if let dotMarker = dotMarker {
+                var shouldMove = true
+                var diff: CGFloat = 0
                 
-                if self.diff > 0 {
-                    self.diff = abs(self.diff!)
-                    
-                    UIView.animateWithDuration(0.3, delay: 0, usingSpringWithDamping: 0.6, initialSpringVelocity: 0, options: UIViewAnimationOptions.CurveEaseInOut, animations: { () -> Void in
-                        self.dotMarker!.frame.origin.y += self.diff!
-                        }, completion: nil)
-                } else {
-                    self.diff = nil
+                if let delegate = calendarView.delegate {
+                    shouldMove = delegate.dotMarker(shouldMoveOnHighlightingOnDayView: self)
                 }
-            } else if self.diff != nil && shouldMove {
-                UIView.animateWithDuration(0.3, delay: 0, usingSpringWithDamping: 0.6, initialSpringVelocity: 0, options: UIViewAnimationOptions.CurveEaseInOut, animations: { () -> Void in
-                    self.dotMarker!.frame.origin.y -= self.diff!
-                    }, completion: nil)
-            } else {
                 
-                if let dotMarker = self.dotMarker {
-                    if let delegate = self.weekView!.monthView!.calendarView!.delegate {
+                func moveMarker() {
+                    UIView.animateWithDuration(0.3, delay: 0, usingSpringWithDamping: 0.6, initialSpringVelocity: 0, options: UIViewAnimationOptions.CurveEaseInOut, animations: {
+                        dotMarker.transform = unwinded ? CGAffineTransformIdentity : CGAffineTransformMakeTranslation(0, diff)
+                        }, completion: nil)
+                }
+                
+                func colorMarker() {
+                    if let delegate = calendarView.delegate {
+                        let appearance = Appearance.sharedCalendarViewAppearance
                         let frame = dotMarker.frame
                         var color: UIColor?
                         if unwinded {
-                            let appearance = weekView!.monthView!.calendarView!.appearanceDelegate! // Note: if nil then look at recovery mechanism
                             color = (isOut) ? appearance.dayLabelWeekdayOutTextColor : delegate.dotMarker(colorOnDayView: self)
                         } else {
-                            if let appearance = self.weekView!.monthView!.calendarView!.appearanceDelegate  {
-                                color = appearance.dotMarkerColor!
-                            }
+                            color = appearance.dotMarkerColor
                         }
                         
-                        let auxiliaryCircleView = CVCircleView(frame: frame, color: color!, _alpha: dotMarker.alpha)
-                        self.dotMarker?.removeFromSuperview()
-                        self.dotMarker = auxiliaryCircleView
-                        self.addSubview(self.dotMarker!)
+                        dotMarker.color = color
+                        dotMarker.setNeedsDisplay()
                     }
+                    
+                }
+                
+                if shouldMove {
+                    if !unwinded {
+                        let radius = (min(frame.height, frame.width) - 10) / 2
+                        let center = CGPointMake(CGRectGetMidX(circleView!.frame), CGRectGetMidY(circleView!.frame))
+                        let maxArcPointY = center.y + radius
+                        diff = maxArcPointY - dotMarker.frame.origin.y/0.95
+                    }
+                    
+                    if (diff > 0 && !unwinded) || unwinded {
+                        moveMarker()
+                    } else {
+                        colorMarker()
+                    }
+                } else {
+                    colorMarker()
                 }
             }
         }
     }
-    
-    private var diff: CGFloat?
+}
+
+// MARK: - Day label state management
+
+extension CVCalendarDayView {
     func setDayLabelHighlighted() {
+        println("Highlighted")
         let appearance = CVCalendarViewAppearance.sharedCalendarViewAppearance
         
-        var color: UIColor?
-        var _alpha: CGFloat?
+        var backgroundColor: UIColor!
+        var backgroundAlpha: CGFloat!
         
-        if self.isCurrentDay {
-            color = appearance.dayLabelPresentWeekdayHighlightedBackgroundColor!
-            _alpha = appearance.dayLabelPresentWeekdayHighlightedBackgroundAlpha!
-            self.dayLabel?.textColor = appearance.dayLabelPresentWeekdayHighlightedTextColor!
-            self.dayLabel?.font = UIFont.boldSystemFontOfSize(appearance.dayLabelPresentWeekdayHighlightedTextSize!)
+        if isCurrentDay {
+            dayLabel?.textColor = appearance.dayLabelPresentWeekdayHighlightedTextColor!
+            dayLabel?.font = appearance.dayLabelPresentWeekdayHighlightedFont
+            backgroundColor = appearance.dayLabelPresentWeekdayHighlightedBackgroundColor
+            backgroundAlpha = appearance.dayLabelPresentWeekdayHighlightedBackgroundAlpha
         } else {
-            color = appearance.dayLabelWeekdayHighlightedBackgroundColor
-            _alpha = appearance.dayLabelWeekdayHighlightedBackgroundAlpha
-            self.dayLabel?.textColor = appearance.dayLabelWeekdayHighlightedTextColor
-            self.dayLabel?.font = UIFont.boldSystemFontOfSize(appearance.dayLabelWeekdayHighlightedTextSize!)
+            dayLabel?.textColor = appearance.dayLabelWeekdayHighlightedTextColor
+            dayLabel?.font = appearance.dayLabelWeekdayHighlightedFont
+            backgroundColor = appearance.dayLabelWeekdayHighlightedBackgroundColor
+            backgroundAlpha = appearance.dayLabelWeekdayHighlightedBackgroundAlpha
         }
         
-        self.circleView = CVCircleView(frame: CGRectMake(0, 0, self.dayLabel!.frame.width, self.dayLabel!.frame.height), color: color!, _alpha: _alpha!)
-        self.insertSubview(self.circleView!, atIndex: 0)
-        self.moveDotMarker(false)
+        if let circleView = circleView {
+            circleView.color = backgroundColor
+            circleView.alpha = backgroundAlpha
+            circleView.setNeedsDisplay()
+        } else {
+            circleView = CVCircleView(frame: dayLabel!.bounds, color: backgroundColor, _alpha: backgroundAlpha)
+            insertSubview(circleView!, atIndex: 0)
+        }
+        
+        moveDotMarkerBack(false)
     }
     
-    func setDayLabelUnhighlighted() {
+    func setDayLabelUnhighlightedDismissingState(removeViews: Bool) {
+        println("Deselected")
+
         let appearance = CVCalendarViewAppearance.sharedCalendarViewAppearance
         
         var color: UIColor?
-        if self.isOut {
+        if isOut {
             color = appearance.dayLabelWeekdayOutTextColor
-        } else if self.isCurrentDay {
+        } else if isCurrentDay {
             color = appearance.dayLabelPresentWeekdayTextColor
         } else {
             color = appearance.dayLabelWeekdayInTextColor
@@ -317,59 +348,103 @@ class CVCalendarDayView: UIView {
         
         var font: UIFont?
         if self.isCurrentDay {
-            if appearance.dayLabelPresentWeekdayInitallyBold {
-                font = UIFont.boldSystemFontOfSize(appearance.dayLabelPresentWeekdayTextSize!)
+            if appearance.dayLabelPresentWeekdayInitallyBold! {
+                font = appearance.dayLabelPresentWeekdayBoldFont
             } else {
-                font = UIFont.systemFontOfSize(appearance.dayLabelPresentWeekdayTextSize!)
+                font = appearance.dayLabelWeekdayFont
             }
         } else {
-            font = UIFont.systemFontOfSize(appearance.dayLabelWeekdayTextSize!)
+            font = appearance.dayLabelWeekdayFont
         }
         
-        self.dayLabel?.textColor = color
-        self.dayLabel?.font = font
+        dayLabel?.textColor = color
+        dayLabel?.font = font
         
-        self.moveDotMarker(true)
-        self.circleView?.removeFromSuperview()
-        self.circleView = nil
+        moveDotMarkerBack(true)
+        
+        if removeViews {
+            circleView?.removeFromSuperview()
+            circleView = nil
+        }
     }
     
-    // MARK: - View Destruction
-    
-    func destroy() {
-        self.weekView = nil
-        self.dayLabel?.removeFromSuperview()
-        self.circleView?.removeFromSuperview()
-        self.topMarker?.removeAllAnimations()
-        self.dotMarker?.removeFromSuperview()
+    func setDayLabelSelected() {
+        println("Selected")
+
+        let appearance = CVCalendarViewAppearance.sharedCalendarViewAppearance
+        
+        var backgroundColor: UIColor!
+        var backgroundAlpha: CGFloat!
+        
+        if isCurrentDay {
+            dayLabel?.textColor = appearance.dayLabelPresentWeekdaySelectedTextColor!
+            dayLabel?.font = appearance.dayLabelPresentWeekdaySelectedFont
+            backgroundColor = appearance.dayLabelPresentWeekdaySelectedBackgroundColor
+            backgroundAlpha = appearance.dayLabelPresentWeekdaySelectedBackgroundAlpha
+        } else {
+            dayLabel?.textColor = appearance.dayLabelWeekdaySelectedTextColor
+            dayLabel?.font = appearance.dayLabelWeekdaySelectedFont
+            backgroundColor = appearance.dayLabelWeekdaySelectedBackgroundColor
+            backgroundAlpha = appearance.dayLabelWeekdaySelectedBackgroundAlpha
+        }
+        
+        if let circleView = circleView {
+            circleView.color = backgroundColor
+            circleView.alpha = backgroundAlpha
+            circleView.setNeedsDisplay()
+        } else {
+            circleView = CVCircleView(frame: dayLabel!.bounds, color: backgroundColor, _alpha: backgroundAlpha)
+            insertSubview(circleView!, atIndex: 0)
+        }
+        
+        moveDotMarkerBack(false)
     }
     
-    // MARK: - Content reload
-    
+    func setDayLabelDeselectedDismissingState(removeViews: Bool) {
+        setDayLabelUnhighlightedDismissingState(removeViews)
+    }
+
+}
+
+// MARK: - Content reload
+
+extension CVCalendarDayView {
     func reloadContent() {
-        self.dotMarker?.removeFromSuperview()
-        self.dotMarker = nil
-        self.setupDotMarker()
-        var shouldShowDaysOut = self.weekView!.monthView!.calendarView!.shouldShowWeekdaysOut!
+        setupDotMarker()
+        dayLabel?.frame = bounds
+        
+        var shouldShowDaysOut = calendarView.shouldShowWeekdaysOut!
         if !shouldShowDaysOut {
-            if self.isOut {
-                self.hidden = true
+            if isOut {
+                hidden = true
             }
         } else {
-            if self.isOut {
-                self.hidden = false
+            if isOut {
+                hidden = false
             }
         }
         
-        self.dayLabel?.frame = CGRectMake(0, 0, self.frame.width, self.frame.height)
-        
-        self.topMarker?.frame.size.width = self.frame.width
-        
-        if self.circleView != nil {
-            self.setDayLabelUnhighlighted()
-            self.setDayLabelHighlighted()
+        if circleView != nil {
+            setDayLabelDeselectedDismissingState(true)
+            setDayLabelSelected()
+        }
+    }
+}
+
+// MARK: - Safe execution
+
+extension CVCalendarDayView {
+    func safeExecuteBlock(block: Void -> Void, collapsingOnNil collapsing: Bool, withObjects objects: AnyObject?...) {
+        for object in objects {
+            if object == nil {
+                if collapsing {
+                    fatalError("Object { \(object) } must not be nil!")
+                } else {
+                    return
+                }
+            }
         }
         
+        block()
     }
-    
 }

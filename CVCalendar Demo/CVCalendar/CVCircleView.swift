@@ -10,7 +10,7 @@ import UIKit
 
 class CVCircleView: UIView {
     
-    private let color: UIColor?
+    var color: UIColor?
     
     init(frame: CGRect, color: UIColor, _alpha: CGFloat) {
         super.init(frame: frame)
@@ -30,8 +30,8 @@ class CVCircleView: UIView {
         
         CGContextSetLineWidth(context, 0.5)
         
-        var radius = (frame.width > frame.height) ? frame.height : frame.width
-        CGContextAddArc(context, (frame.size.width)/2, frame.size.height/2, (radius - 10)/2, 0.0, CGFloat(M_PI * 2.0), 1)
+        var radius = (min(frame.height, frame.width) - 10) / 2
+        CGContextAddArc(context, (frame.size.width)/2, frame.size.height/2, radius, 0.0, CGFloat(M_PI * 2.0), 1)
         
         // Draw
         CGContextSetFillColorWithColor(context, self.color!.CGColor)

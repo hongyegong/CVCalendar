@@ -24,6 +24,9 @@ class CVCalendarContentViewController: UIViewController, UIScrollViewDelegate {
     
     let calendarView: CalendarView!
     var presentedMonthView: MonthView!
+    var bounds: CGRect {
+        return scrollView.bounds
+    }
     
     private let scrollView: UIScrollView!
     private let delegate: ContentDelegate!
@@ -46,11 +49,11 @@ class CVCalendarContentViewController: UIViewController, UIScrollViewDelegate {
         
         if calendarView.calendarMode == CalendarMode.MonthView {
             delegate = MonthContent(contentController: self)
-            println("Scroll View: \(scrollView)")
         } else {
             delegate = WeekContent(contentController: self)
-            println("Scroll View: \(scrollView)")
         }
+        
+        
     }
     
     override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: NSBundle?) {
@@ -74,8 +77,6 @@ class CVCalendarContentViewController: UIViewController, UIScrollViewDelegate {
     // MARK: - Appearance Update 
     
     func updateFrames(frame: CGRect) {
-        println("Updating 1")
-        
         presentedMonthView.updateAppearance(frame)
         
         scrollView.frame = frame
@@ -89,15 +90,19 @@ class CVCalendarContentViewController: UIViewController, UIScrollViewDelegate {
     // MARK: - Scroll View Delegate 
     
     func scrollViewDidScroll(scrollView: UIScrollView) {
-        delegate.scrollViewDidScroll(scrollView)
+        delegate.scrollViewDidScroll!(scrollView)
     }
     
     func scrollViewWillBeginDragging(scrollView: UIScrollView) {
-        delegate.scrollViewWillBeginDragging(scrollView)
+        delegate.scrollViewWillBeginDragging!(scrollView)
     }
 
     func scrollViewDidEndDecelerating(scrollView: UIScrollView) {
-        delegate.scrollViewDidEndDecelerating(scrollView)
+        delegate.scrollViewDidEndDecelerating!(scrollView)
+    }
+    
+    func scrollViewDidEndDragging(scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        delegate.scrollViewDidEndDragging!(scrollView, willDecelerate: decelerate)
     }
     
     // MARK: - Day View Selection

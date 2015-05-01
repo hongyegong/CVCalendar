@@ -103,16 +103,12 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
             scrollView.contentOffset = CGPointMake(scrollView.contentOffset.x, 0)
         }
         
-        if self.lastContentOffset > scrollView.contentOffset.x {
-            self.direction = .Right
-        } else if self.lastContentOffset < scrollView.contentOffset.x {
-            self.direction = .Left
-        }
-        
         self.lastContentOffset = scrollView.contentOffset.x
     }
     
+    
     func _scrollViewDidEndDecelerating(scrollView: UIScrollView) {
+        println("Page = \(page)")
         if self.pageChanged {
             if self.direction == .Left {
                 if self.monthViews![0] != nil {
@@ -128,10 +124,6 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
         self.pageChanged = false
         self.pageLoadingEnabled = true
         self.direction = .None
-        
-        self.prepareTopMarkersOnDayViews(self.monthViews![0]!, hidden: false)
-        self.prepareTopMarkersOnDayViews(self.monthViews![1]!, hidden: false)
-        self.prepareTopMarkersOnDayViews(self.monthViews![2]!, hidden: false)
         
         self.calendarView!.presentedDate = CVDate(date: self.monthViews![1]!.date!)
     }
@@ -215,7 +207,7 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
             
             var extraMonthView: CVCalendarMonthView? = self.monthViews!.removeValueForKey(0)
             extraMonthView!.removeFromSuperview()
-            extraMonthView!.destroy()
+            //extraMonthView!.destroy()
             extraMonthView = nil
             
             let rightMonthView = self.getNextMonth(date)
@@ -241,7 +233,7 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
             
             var extraMonthView: CVCalendarMonthView? = self.monthViews!.removeValueForKey(2)
             extraMonthView!.removeFromSuperview()
-            extraMonthView!.destroy()
+            //extraMonthView!.destroy()
             extraMonthView = nil
             
             let leftMonthView = self.getPreviousMonth(date)
@@ -260,7 +252,7 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
     
     func prepareTopMarkersOnDayViews(monthView: CVCalendarMonthView, hidden: Bool) {
         let weekViews = monthView.weekViews!
-        
+
         for week in weekViews {
             let dayViews = week.dayViews!
             
@@ -321,7 +313,6 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
         
         let presentedMonthView = self.monthViews![1]!
         scrollView.scrollRectToVisible(presentedMonthView.frame, animated: false)
-        
     }
     
     func replaceMonthViewsOnReload() {
@@ -362,7 +353,7 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
         for weekView in monthView.weekViews! {
             for dayView in weekView.dayViews! {
                 if dayView.date?.day == day && !dayView.isOut {
-                    coordinator.performDayViewSelection(dayView)
+                    coordinator.performDayViewSingleSelection(dayView)
                 }
             }
         }
@@ -373,9 +364,7 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
             if dayView.date?.day > 20 {
                 let presentedDate = dayView.weekView!.monthView!.date!
                 self.calendarView!.presentedDate = CVDate(date: self.dateBeforeDate(presentedDate))
-                
                 self.presentPreviousMonthView(dayView)
-                
             } else {
                 let presentedDate = dayView.weekView!.monthView!.date!
                 self.calendarView!.presentedDate = CVDate(date: self.dateAfterDate(presentedDate))
@@ -396,9 +385,9 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
             leftMonthView.frame.origin.x -= self.scrollView.frame.width
             presentedMonthView.frame.origin.x -= self.scrollView.frame.width
             
-            }, completion: { (finished) -> Void in
+        }, completion: { _ in
                 extraMonthView!.removeFromSuperview()
-                extraMonthView!.destroy()
+                //extraMonthView!.destroy()
                 extraMonthView = nil
                 
                 let rightMonthView = self.getNextMonth(presentedMonthView.date!)
@@ -441,7 +430,7 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
             }, completion: { (finished) -> Void in
                 
                 extraMonthView!.removeFromSuperview()
-                extraMonthView!.destroy()
+                //extraMonthView!.destroy()
                 extraMonthView = nil
                 
                 let leftMonthView = self.getPreviousMonth(presentedMonthView.date!)
@@ -481,11 +470,11 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
             var extraRightMonthView = self.monthViews!.removeValueForKey(2)
             
             extraLeftMonthView?.removeFromSuperview()
-            extraLeftMonthView?.destroy()
+            //extraLeftMonthView?.destroy()
             extraLeftMonthView = nil
             
             extraRightMonthView?.removeFromSuperview()
-            extraRightMonthView?.destroy()
+            //extraRightMonthView?.destroy()
             extraRightMonthView = nil
             
             let presentedMonthView = CVCalendarMonthView(calendarView: self.calendarView!, date: date)
@@ -501,7 +490,7 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
                 }) { (finished) -> Void in
                     self.monthViews!.removeValueForKey(1)
                     currentMonthView!.removeFromSuperview()
-                    currentMonthView!.destroy()
+                    //currentMonthView!.destroy()
                     currentMonthView = nil
                     
                     self.monthViews!.updateValue(leftMonthView, forKey: 0)
@@ -544,6 +533,21 @@ class CVCalendarMonthContentView: NSObject, CVCalendarContentDelegate {
     
     func updateFrames() {
         _updateFrames()
+    }
+    
+    func scrollViewDidEndDragging(scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if decelerate {
+            let rightBorder = scrollView.frame.width
+            if scrollView.contentOffset.x <= rightBorder {
+                self.direction = .Right
+            } else  {
+                self.direction = .Left
+            }
+        }
+        
+        self.prepareTopMarkersOnDayViews(self.monthViews![0]!, hidden: false)
+        self.prepareTopMarkersOnDayViews(self.monthViews![1]!, hidden: false)
+        self.prepareTopMarkersOnDayViews(self.monthViews![2]!, hidden: false)
     }
     
     func scrollViewWillBeginDragging(scrollView: UIScrollView) {
